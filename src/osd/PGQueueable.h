@@ -80,6 +80,24 @@ class PGQueueable {
     void operator()(const PGRecovery &op);
   }; // struct RunVis
 
+  struct PLBefVis : public boost::static_visitor<> {
+    void operator()(OpRequestRef &op) {
+      op->pg_lock_before = ceph_clock_now();
+    }
+    void operator()(PGSnapTrim &op) {}
+    void operator()(PGScrub &op) {}
+    void operator()(PGRecovery &op) {}
+  }; // struct PLBefVis
+
+  struct PLAftVis : public boost::static_visitor<> {
+    void operator()(OpRequestRef &op) {
+      op->pg_lock_after = ceph_clock_now();
+    }
+    void operator()(PGSnapTrim &op) {}
+    void operator()(PGScrub &op) {}
+    void operator()(PGRecovery &op) {}
+  }; // struct PLAftVis
+
   struct StringifyVis : public boost::static_visitor<std::string> {
     std::string operator()(const OpRequestRef &op) {
       return stringify(op);
@@ -139,6 +157,17 @@ public:
     RunVis v(osd, pg, handle);
     boost::apply_visitor(v, qvariant);
   }
+
+  void before_pglock() {
+    PLBefVis v;
+    boost::apply_visitor(v, qvariant);
+  }
+
+  void after_pglock() {
+    PLAftVis v;
+    boost::apply_visitor(v, qvariant);
+  }
+
   unsigned get_priority() const { return priority; }
   int get_cost() const { return cost; }
   utime_t get_start_time() const { return start_time; }

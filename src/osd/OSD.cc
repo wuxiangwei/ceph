@@ -2999,6 +2999,24 @@ void OSD::create_logger()
   osd_plb.add_time_avg(
     l_osd_op_w_lat,  "op_w_latency",
     "Latency of write operation (including queue time)");
+  osd_plb.add_time_avg(
+    l_osd_op_w_shard_lat, "op_w_shard_lat",
+    "Latency of shard");
+  osd_plb.add_time_avg(
+    l_osd_op_w_pglock_lat, "op_w_pglock_lat",
+    "Latency of pglock");
+  osd_plb.add_time_avg(
+    l_osd_op_w_pg_lat, "op_w_pg_lat",
+    "Latency of pg");
+  osd_plb.add_time_avg(
+    l_osd_op_w_disk_lat, "op_w_disk_lat",
+    "Latency of disk");
+  osd_plb.add_time_avg(
+    l_osd_op_w_waitsubop_lat, "op_w_waitsubop_lat",
+    "Latency of wait subop");
+  osd_plb.add_time_avg(
+    l_osd_op_w_lastsubop_lat, "op_w_lastsubop_lat",
+    "Latency of last subop");
   osd_plb.add_u64_counter_histogram(
     l_osd_op_w_lat_inb_hist, "op_w_latency_in_bytes_histogram",
     op_hist_x_axis_config, op_hist_y_axis_config,
@@ -10172,11 +10190,13 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   osd->service.maybe_inject_dispatch_delay();
 
   // [lookup +] lock pg (if we have it)
+  item.second->before_pglock();
   if (!pg) {
     pg = osd->_lookup_lock_pg(item.first);
   } else {
     pg->lock();
   }
+  item.second->after_pglock();
 
   osd->service.maybe_inject_dispatch_delay();
 

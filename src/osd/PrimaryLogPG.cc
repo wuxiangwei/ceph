@@ -3441,9 +3441,22 @@ void PrimaryLogPG::log_op_stats(OpContext *ctx)
     osd->logger->hinc(l_osd_op_r_lat_outb_hist, latency.to_nsec(), outb);
     osd->logger->tinc(l_osd_op_r_process_lat, process_latency);
   } else if (op->may_write() || op->may_cache()) {
+    utime_t shard_lat = ctx->op->pg_lock_before - ctx->op->get_recv_stamp();
+    utime_t pglock_lat = ctx->op->pg_lock_after - ctx->op->pg_lock_before;
+    utime_t pg_lat = ctx->op->wait_for_subop - ctx->op->pg_lock_after;
+    utime_t disk_lat = ctx->op->op_commit - ctx->op->wait_for_subop;
+    utime_t waitsubop_lat = ctx->op->sub_op_commit_rec - ctx->op->op_commit;
+    utime_t lastsubop_lat = now - ctx->op->sub_op_commit_rec;
+
     osd->logger->inc(l_osd_op_w);
     osd->logger->inc(l_osd_op_w_inb, inb);
     osd->logger->tinc(l_osd_op_w_lat, latency);
+    osd->logger->tinc(l_osd_op_w_shard_lat, shard_lat);
+    osd->logger->tinc(l_osd_op_w_pglock_lat, pglock_lat);
+    osd->logger->tinc(l_osd_op_w_pg_lat, pg_lat);
+    osd->logger->tinc(l_osd_op_w_disk_lat, disk_lat);
+    osd->logger->tinc(l_osd_op_w_waitsubop_lat, waitsubop_lat);
+    osd->logger->tinc(l_osd_op_w_lastsubop_lat, lastsubop_lat);
     osd->logger->hinc(l_osd_op_w_lat_inb_hist, latency.to_nsec(), inb);
     osd->logger->tinc(l_osd_op_w_process_lat, process_latency);
   } else

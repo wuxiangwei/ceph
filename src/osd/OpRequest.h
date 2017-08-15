@@ -32,6 +32,12 @@
 struct OpRequest : public TrackedOp {
   friend class OpTracker;
 
+  utime_t pg_lock_before;
+  utime_t pg_lock_after;
+  utime_t wait_for_subop;
+  utime_t op_commit;
+  utime_t sub_op_commit_rec;
+
   // rmw flags
   int rmw_flags;
 

@@ -615,6 +615,7 @@ void ReplicatedBackend::op_commit(
   if (op->op) {
     op->op->mark_event("op_commit");
     op->op->pg_trace.event("op commit");
+    op->op->op_commit = ceph_clock_now();
   }
 
   op->waiting_for_commit.erase(get_parent()->whoami_shard());
@@ -670,6 +671,9 @@ void ReplicatedBackend::do_repop_reply(OpRequestRef op)
         ss << "sub_op_commit_rec from " << from;
 	ip_op.op->mark_event_string(ss.str());
 	ip_op.op->pg_trace.event("sub_op_commit_rec");
+        if (!ip_op.waiting_for_commit.empty()) {
+          ip_op.op->sub_op_commit_rec = ceph_clock_now();
+        }
       }
     } else {
       assert(ip_op.waiting_for_applied.count(from));
@@ -1039,8 +1043,10 @@ void ReplicatedBackend::issue_op(
     set<pg_shard_t> replicas = parent->get_actingbackfill_shards();
     replicas.erase(parent->whoami_shard());
     ss << "waiting for subops from " << replicas;
-    if (op->op)
+    if (op->op) {
       op->op->mark_sub_op_sent(ss.str());
+      op->op->wait_for_subop = ceph_clock_now();
+    }
   }
   for (set<pg_shard_t>::const_iterator i =
 	 parent->get_actingbackfill_shards().begin();
