@@ -10190,13 +10190,13 @@ void OSD::ShardedOpWQ::_process(uint32_t thread_index, heartbeat_handle_d *hb)
   osd->service.maybe_inject_dispatch_delay();
 
   // [lookup +] lock pg (if we have it)
-  item.second->before_pglock();
+  item.second.before_pglock();
   if (!pg) {
     pg = osd->_lookup_lock_pg(item.first);
   } else {
     pg->lock();
   }
-  item.second->after_pglock();
+  item.second.after_pglock();
 
   osd->service.maybe_inject_dispatch_delay();
 

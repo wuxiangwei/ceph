@@ -674,6 +674,7 @@ void ReplicatedBackend::do_repop_reply(OpRequestRef op)
         if (!ip_op.waiting_for_commit.empty()) {
           ip_op.op->sub_op_commit_rec = ceph_clock_now();
         }
+        ip_op.op->repop_commit_rec.push_back(ceph_clock_now());
       }
     } else {
       assert(ip_op.waiting_for_applied.count(from));

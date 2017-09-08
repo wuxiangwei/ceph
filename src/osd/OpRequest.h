@@ -37,6 +37,7 @@ struct OpRequest : public TrackedOp {
   utime_t wait_for_subop;
   utime_t op_commit;
   utime_t sub_op_commit_rec;
+  std::vector<utime_t> repop_commit_rec;
 
   // rmw flags
   int rmw_flags;
