@@ -370,6 +370,7 @@ CompatSet Monitor::get_supported_features()
   compat.incompat.insert(CEPH_MON_FEATURE_INCOMPAT_ERASURE_CODE_PLUGINS_V2);
   compat.incompat.insert(CEPH_MON_FEATURE_INCOMPAT_ERASURE_CODE_PLUGINS_V3);
   compat.incompat.insert(CEPH_MON_FEATURE_INCOMPAT_KRAKEN);
+  compat.incompat.insert(CEPH_MON_FEATURE_INCOMPAT_LUMINOUS);
   return compat;
 }
 
@@ -796,6 +797,8 @@ int Monitor::init()
   mgr_messenger->add_dispatcher_tail(this);  // for auth ms_* calls
 
   bootstrap();
+  // add features of myself into feature_map
+  session_map.feature_map.add_mon(con_self->get_features());
   return 0;
 }
 
@@ -2076,6 +2079,13 @@ void Monitor::apply_monmap_to_compatset_features()
     assert(HAVE_FEATURE(quorum_con_features, SERVER_KRAKEN));
     new_features.incompat.insert(CEPH_MON_FEATURE_INCOMPAT_KRAKEN);
   }
+  if (monmap_features.contains_all(ceph::features::mon::FEATURE_LUMINOUS)) {
+    assert(ceph::features::mon::get_persistent().contains_all(
+           ceph::features::mon::FEATURE_LUMINOUS));
+    // this feature should only ever be set if the quorum supports it.
+    assert(HAVE_FEATURE(quorum_con_features, SERVER_LUMINOUS));
+    new_features.incompat.insert(CEPH_MON_FEATURE_INCOMPAT_LUMINOUS);
+  }
 
   dout(5) << __func__ << dendl;
   _apply_compatset_features(new_features);
@@ -2100,6 +2110,9 @@ void Monitor::calc_quorum_requirements()
   }
   if (features.incompat.contains(CEPH_MON_FEATURE_INCOMPAT_KRAKEN)) {
     required_features |= CEPH_FEATUREMASK_SERVER_KRAKEN;
+  }
+  if (features.incompat.contains(CEPH_MON_FEATURE_INCOMPAT_LUMINOUS)) {
+    required_features |= CEPH_FEATUREMASK_SERVER_LUMINOUS;
   }
 
   // monmap
@@ -2707,7 +2720,12 @@ void Monitor::get_cluster_status(stringstream &ss, Formatter *f)
 
   if (f) {
     f->dump_stream("fsid") << monmap->get_fsid();
-    get_health_status(false, f, nullptr);
+    if (osdmon()->osdmap.require_osd_release >= CEPH_RELEASE_LUMINOUS) {
+      get_health_status(false, f, nullptr);
+    } else {
+      list<string> health_str;
+      get_health(health_str, nullptr, f);
+    }
     f->dump_unsigned("election_epoch", get_epoch());
     {
       f->open_array_section("quorum");
@@ -3356,8 +3374,12 @@ void Monitor::handle_command(MonOpRequestRef op)
       tagstr = tagstr.substr(0, tagstr.find_last_of(' '));
     f->dump_string("tag", tagstr);
 
-    list<string> hs;
-    get_health(hs, NULL, f.get());
+    if (osdmon()->osdmap.require_osd_release >= CEPH_RELEASE_LUMINOUS) {
+      get_health_status(true, f.get(), nullptr);
+    } else {
+      list<string> health_str;
+      get_health(health_str, nullptr, f.get());
+    }
 
     monmon()->dump_info(f.get());
     osdmon()->dump_info(f.get());
@@ -3599,7 +3621,7 @@ void Monitor::handle_command(MonOpRequestRef op)
 
     mdsmon()->count_metadata("ceph_version", &mds);
     f->open_object_section("mds");
-    for (auto& p : mon) {
+    for (auto& p : mds) {
       f->dump_int(p.first.c_str(), p.second);
       overall[p.first] += p.second;
     }
@@ -4392,8 +4414,13 @@ void Monitor::handle_ping(MonOpRequestRef op)
   boost::scoped_ptr<Formatter> f(new JSONFormatter(true));
   f->open_object_section("pong");
 
-  list<string> health_str;
-  get_health(health_str, NULL, f.get());
+  if (osdmon()->osdmap.require_osd_release >= CEPH_RELEASE_LUMINOUS) {
+    get_health_status(false, f.get(), nullptr);
+  } else {
+    list<string> health_str;
+    get_health(health_str, nullptr, f.get());
+  }
+
   {
     stringstream ss;
     get_mon_status(f.get(), ss);
